@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 
 namespace BrightstarDB.Dto
 {
@@ -73,19 +74,23 @@ namespace BrightstarDB.Dto
         /// Creates a store export job request object
         /// </summary>
         /// <param name="exportFileName">The name of the file to export the data to</param>
-        /// <param name="graphUri">OPTIONAL: The URI identifier of the graph to be exported. If not provided, all graphs in the store are exported</param>
+        /// <param name="graphUri">OPTIONAL: The URI identifier of the graph to be exported. If not provided, then either all graphs in the store are exported or just the default graph depending on the export format selected.</param>
+        /// <param name="format">OPTIONAL: The format to use for the exported data. Defaults to <see cref="RdfFormat.NQuads"/>.</param>
         /// <returns>A new <see cref="JobRequestObject"/> instance</returns>
-        public static JobRequestObject CreateExportJob(string exportFileName, string graphUri = null)
+        public static JobRequestObject CreateExportJob(string exportFileName, string graphUri = null, RdfFormat format = null)
         {
             if (exportFileName == null) throw new ArgumentNullException("exportFileName");
             if (String.IsNullOrWhiteSpace(exportFileName)) throw new ArgumentException(Strings.StringParameterMustBeNonEmpty, "exportFileName");
             if (graphUri != null && String.IsNullOrWhiteSpace(graphUri)) throw new ArgumentException(Strings.StringParameterMustBeNonEmpty, "graphUri");
-
+            if (format == null) format = RdfFormat.NQuads.WithEncoding(Encoding.UTF8);
+            var formatMime = format.MediaTypes[0];
+            if (format.Encoding != null) formatMime += ";charset=" + format.Encoding.BodyName.ToLowerInvariant();
             return new JobRequestObject("Export",
                                         new Dictionary<string, string>
                                             {
                                                 {"FileName", exportFileName},
-                                                {"GraphUri", graphUri}
+                                                {"GraphUri", graphUri},
+                                                {"Format", formatMime}
                                             });
         }
 

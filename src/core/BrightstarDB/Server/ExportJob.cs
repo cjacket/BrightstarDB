@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 #if PORTABLE
 using BrightstarDB.Portable.Adaptation;
@@ -7,6 +9,7 @@ using BrightstarDB.Portable.Compatibility;
 using BrightstarDB.Storage;
 #endif
 using BrightstarDB.Rdf;
+using VDS.RDF;
 
 namespace BrightstarDB.Server
 {
@@ -16,15 +19,22 @@ namespace BrightstarDB.Server
         private readonly StoreWorker _storeWorker;
         private readonly string _outputFileName;
         private readonly string _graphUri;
+        private readonly RdfFormat _format;
         private Action<Guid, Exception> _errorCallback;
         private Action<Guid> _successCallback;
 
-        public ExportJob(Guid jobId, StoreWorker storeWorker, string outputFileName, string graphUri)
+        public ExportJob(Guid jobId, StoreWorker storeWorker, string outputFileName, string graphUri, RdfFormat format)
         {
+            // Only graphUri can be null
+            if (storeWorker == null) throw new ArgumentNullException("storeWorker");
+            if (outputFileName == null) throw new ArgumentNullException("outputFileName");
+            if (format == null) throw new ArgumentNullException("format");
+
             _jobId = jobId;
             _storeWorker = storeWorker;
             _outputFileName = outputFileName;
             _graphUri = graphUri;
+            _format = format;
         }
 
         public void Run(Action<Guid, Exception> errorCallback, Action<Guid> successCallback)
@@ -46,29 +56,30 @@ namespace BrightstarDB.Server
                 var persistenceManager = PlatformAdapter.Resolve<IPersistenceManager>();
                 if (!persistenceManager.DirectoryExists(exportDirectory)) persistenceManager.CreateDirectory(exportDirectory);
                 var filePath = Path.Combine(exportDirectory, exportJob._outputFileName);
-                using (var stream = persistenceManager.GetOutputStream(filePath, FileMode.Create))
 #else
                 if (!Directory.Exists(exportDirectory)) Directory.CreateDirectory(exportDirectory);
                 var filePath = Path.Combine(exportDirectory, exportJob._outputFileName);
+#endif
                 Logging.LogDebug("Export file path calculated as '{0}'", filePath);
-                using (var stream = File.Open(filePath, FileMode.Create, FileAccess.Write))
-#endif
+                // Determine which graphs to write out
+                string[] graphs;
+                if (!String.IsNullOrEmpty(exportJob._graphUri))
                 {
-                    string[] graphs = String.IsNullOrEmpty(exportJob._graphUri)
-                                          ? null
-                                          : new[] {exportJob._graphUri};
-                    var triples = exportJob._storeWorker.ReadStore.Match(null, null, null, graphs:graphs);
-                    var sw = new StreamWriter(stream);
-                    var nw = new BrightstarTripleSinkAdapter(new NTriplesWriter(sw));
-                    foreach (var triple in triples)
-                    {
-                        nw.Triple(triple);
-                    }
-                    sw.Flush();
-#if !PORTABLE
-                    stream.Flush(true);
-                    stream.Close();
-#endif
+                    graphs = new string[] {exportJob._graphUri};
+                }
+                else
+                {
+                    graphs = exportJob._format.SupportsDatasets ? null : new string[] {Constants.DefaultGraphUri};
+                }
+
+                // Write the dataset or graph format requested
+                if (exportJob._format.SupportsDatasets)
+                {
+                    WriteDataset(exportJob._storeWorker, graphs, exportJob._format, filePath);
+                }
+                else
+                {
+                    WriteGraph(exportJob._storeWorker, graphs, exportJob._format, filePath);
                 }
                 exportJob._successCallback(exportJob._jobId);
             }
@@ -78,6 +89,71 @@ namespace BrightstarDB.Server
                 exportJob._errorCallback(exportJob._jobId, ex);
             }
 
+        }
+
+        private static void WriteDataset(StoreWorker storeWorker, string[] graphs, RdfFormat format, string fileName)
+        {
+            if (format.DefaultExtension.Equals("nq"))
+            {
+#if PORTABLE
+                using (var outputStream = persistenceManager.GetOutputStream(fileName, FileMode.Create))
+#else
+                using (var outputStream = File.Open(fileName, FileMode.Create, FileAccess.Write))
+#endif
+                {
+                    // For NQuads use our own faster serializer that doesn't group quads by graph
+                    using (var streamWriter = new StreamWriter(outputStream, format.Encoding))
+                    {
+                        var nqWriter =
+                            new BrightstarTripleSinkAdapter(new NQuadsWriter(streamWriter,
+                                                                             (graphs != null && graphs.Any())
+                                                                                 ? graphs.First()
+                                                                                 : Constants.DefaultGraphUri));
+                        foreach (var t in storeWorker.ReadStore.Match(null, null, null, graphs: graphs))
+                        {
+                            nqWriter.Triple(t);
+                        }
+                        streamWriter.Flush();
+                    }
+                }
+            }
+            else
+            {
+                // Create an adapter to ITripleStore
+                var tripleStore = new BrightstarTripleStoreAdapter(storeWorker.ReadStore);
+                var writer = MimeTypesHelper.GetStoreWriter(format.MediaTypes[0]);
+                writer.Save(tripleStore, fileName);
+            }
+        }
+
+        private static void WriteGraph(StoreWorker storeWorker, string[] graphs, RdfFormat format, string fileName)
+        {
+            if (format.DefaultExtension.Equals("nt"))
+            {
+                // For NTriples use our own faster serializer
+#if PORTABLE
+                using (var outputStream = persistenceManager.GetOutputStream(fileName, FileMode.Create))
+#else
+                using (var outputStream = File.Open(fileName, FileMode.Create, FileAccess.Write))
+#endif
+                {
+                    using (var streamWriter = new StreamWriter(outputStream, format.Encoding))
+                    {
+                        var ntWriter = new BrightstarTripleSinkAdapter(new NTriplesWriter(streamWriter));
+                        foreach (var t in storeWorker.ReadStore.Match(null, null, null, graphs: graphs))
+                        {
+                            ntWriter.Triple(t);
+                        }
+                        streamWriter.Flush();
+                    }
+                }
+            }
+            else
+            {
+                var graph = new BrightstarGraphAdapter(storeWorker.ReadStore, graphs.First());
+                var writer = MimeTypesHelper.GetWriter(format.MediaTypes[0]);
+                writer.Save(graph, fileName);
+            }
         }
     }
 }

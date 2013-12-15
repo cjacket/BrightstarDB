@@ -139,6 +139,8 @@
     <Compile Include="EntityFramework\SimpleContextTests.cs" />
     <Compile Include="EntityFramework\InterfaceInheritanceTests.cs" />
     <Compile Include="EntityFramework\StringComparisonTests.cs" />
+    <Compile Include="ExportTests.cs" />
+    <Compile Include="ParameterizedClientTestBase.cs" />
     <Compile Include="TestHelper.cs" />
     <Compile Include="GraphTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -1,13 +1,10 @@
 ﻿#if !PORTABLE
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.ServiceModel;
 using System.Text;
 using System.Threading;
 using System.Xml.Linq;
-using BrightstarDB.Caching;
 using BrightstarDB.Client;
 using BrightstarDB.Rdf;
 using BrightstarDB.Storage;
@@ -15,15 +12,17 @@ using NUnit.Framework;
 
 namespace BrightstarDB.Tests
 {
-    [TestFixture("type=rest;endpoint=http://localhost:8090/brightstar")]
-    [TestFixture("type=embedded;storesDirectory=brightstar")]
+    [TestFixture("type=rest;endpoint=http://localhost:8090/brightstar", "c:\\brightstar")]
+    [TestFixture("type=embedded;storesDirectory=brightstar", "brightstar")]
     public class ClientTests : ClientTestBase
     {
         private readonly string _connectionString;
+        private readonly string _serviceDirectoryPath;
 
-        public ClientTests(string connectionString)
+        public ClientTests(string connectionString, string serviceDirectoryPath)
         {
             _connectionString = connectionString;
+            _serviceDirectoryPath = serviceDirectoryPath;
         }
 
         private IBrightstarService GetClient()
@@ -656,22 +655,7 @@ namespace BrightstarDB.Tests
             Assert.IsTrue(job.JobCompletedOk, "Job did not complete successfully: {0} : {1}", job.StatusMessage, job.ExceptionInfo);
         }
 
-        private static IJobInfo WaitForJob(IJobInfo job, IBrightstarService client, string storeName)
-        {
-            var cycleCount = 0;
-            while (!job.JobCompletedOk && !job.JobCompletedWithErrors && cycleCount < 100)
-            {
-                Thread.Sleep(500);
-                cycleCount++;
-                job = client.GetJobInfo(storeName, job.JobId);
-            }
-            if (!job.JobCompletedOk && !job.JobCompletedWithErrors)
-            {
-                Assert.Fail("Job did not complete in time.");
-            }
-            return job;
-        }
-
+        
         [Test]
         public void TestConsolidatePopulatedStore()
         {
@@ -1058,8 +1042,9 @@ namespace BrightstarDB.Tests
                 client.GetJobInfo("Invalid" + storeName, 0, 10);
                 Assert.Fail("Expected BrightstarClientException when store does not exist");
             } catch(BrightstarClientException){}
-
         }
+
+        
         
         private static void AssertTriplePatternInGraph(IBrightstarService client, string storeName, string triplePattern,
                                               string graphUri)

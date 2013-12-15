@@ -1,8 +1,10 @@
 ﻿#if !PORTABLE
 using System;
+using System.Threading;
 using BrightstarDB.Client;
 using BrightstarDB.Server.Modules;
 using BrightstarDB.Server.Modules.Permissions;
+using NUnit.Framework;
 using Nancy.Hosting.Self;
 
 namespace BrightstarDB.Tests
@@ -47,6 +49,23 @@ namespace BrightstarDB.Tests
 #endif
             }
         }
+
+        public static IJobInfo WaitForJob(IJobInfo job, IBrightstarService client, string storeName)
+        {
+            var cycleCount = 0;
+            while (!job.JobCompletedOk && !job.JobCompletedWithErrors && cycleCount < 100)
+            {
+                Thread.Sleep(500);
+                cycleCount++;
+                job = client.GetJobInfo(storeName, job.JobId);
+            }
+            if (!job.JobCompletedOk && !job.JobCompletedWithErrors)
+            {
+                Assert.Fail("Job did not complete in time.");
+            }
+            return job;
+        }
+
     }
 }
 #endif

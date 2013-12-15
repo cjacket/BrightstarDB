@@ -235,9 +235,19 @@ namespace BrightstarDB.Client
         /// </summary>
         /// <param name="store">The store to export data from</param>
         /// <param name="fileName">The name of the file in the brightstar\import folder to write to. This file will be overwritten if it already exists.</param>
-        /// <param name="graphUri">The URI of the graph to be exported. If NULL, all graphs in the store are exported.</param>
+        /// <param name="graphUri">The URI of the graph to be exported. If NULL, either the default graph or all graphs in the store get exported. See remarks for further details.</param>
+        /// <param name="format">The RDF format to be used for the export</param>
         /// <returns>A JobInfo instance</returns>
-        IJobInfo StartExport(string store, string fileName, string graphUri = null);
+        /// <remarks>
+        ///     <para>The default RDF export format is <see cref="RdfFormat.RdfXml"/> (using UTF-8 character encoding). This can be overridden by providing a value for the <paramref name="format"/> parameter.</para>
+        ///     <para>If the <paramref name="graphUri"/> parameter is not provided or is specified as NULL, then the data exported will depend on the <see cref="RdfFormat"/> specified
+        /// by the <paramref name="format"/> parameter. If the format specified is an RDF Dataset format (i.e. one that supports serializing multiple RDF graphs), then the export
+        /// will consist of all graphs in the store. If the format specified is an RDF Graph format (i.e. one that supports serializing only a single RDF graph), then the export
+        /// will consist of only the contents of the default graph in the store.</para>
+        ///     <para>Note that the default export format (<see cref="RdfFormat.NQuads"/>) is an RDF Dataset format, so if both <paramref name="graphUri"/> and <paramref name="format"/>
+        /// parameters are left with their default values, the default export is an NQuads serialization of all graphs in the store.</para>
+        /// </remarks>
+        IJobInfo StartExport(string store, string fileName, string graphUri = null, RdfFormat format = null);
 
         /// <summary>
         /// Creates a new store file containing only the data required for the current state

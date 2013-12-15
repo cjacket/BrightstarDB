@@ -301,10 +301,10 @@ namespace BrightstarDB.Server
             return storeWorker.GetJobStatus(jobId);
         }
 
-        public Guid Export(string storeName, string fileName, string graphUri)
+        public Guid Export(string storeName, string fileName, string graphUri, RdfFormat format)
         {
             var storeWorker = GetStoreWorker(storeName);
-            return storeWorker.Export(fileName, graphUri);
+            return storeWorker.Export(fileName, graphUri, format);
         }
 
         public IEnumerable<Triple> GetResourceStatements(string storeId, string resourceUri)

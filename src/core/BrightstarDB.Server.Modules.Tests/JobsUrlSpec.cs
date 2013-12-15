@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using BrightstarDB.Client;
 using BrightstarDB.Dto;
 using BrightstarDB.Server.Modules.Model;
@@ -58,7 +59,7 @@ namespace BrightstarDB.Server.Modules.Tests
             var brightstar = new Mock<IBrightstarService>();
             var mockJobInfo = new Mock<IJobInfo>();
             mockJobInfo.Setup(s => s.JobId).Returns("2345");
-            brightstar.Setup(s=>s.StartExport("foo", "export.nt", null)).Returns(mockJobInfo.Object).Verifiable();
+            brightstar.Setup(s=>s.StartExport("foo", "export.nt", null, It.Is<RdfFormat>(f=>f.DefaultExtension.Equals("nq")))).Returns(mockJobInfo.Object).Verifiable();
             var app = new Browser(new FakeNancyBootstrapper(brightstar.Object));
             var requestObject = JobRequestObject.CreateExportJob("export.nt");
 
@@ -81,9 +82,55 @@ namespace BrightstarDB.Server.Modules.Tests
             var brightstar = new Mock<IBrightstarService>();
             var mockJobInfo = new Mock<IJobInfo>();
             mockJobInfo.Setup(s => s.JobId).Returns("2345");
-            brightstar.Setup(s => s.StartExport("foo", "export.nt", "http://some/graph/uri")).Returns(mockJobInfo.Object).Verifiable();
+            brightstar.Setup(s => s.StartExport("foo", "export.nt", "http://some/graph/uri", It.Is<RdfFormat>(f=>f.DefaultExtension.Equals("nq")))).Returns(mockJobInfo.Object).Verifiable();
             var app = new Browser(new FakeNancyBootstrapper(brightstar.Object));
             var requestObject = JobRequestObject.CreateExportJob("export.nt", "http://some/graph/uri");
+
+            // Execute
+            var response = app.Post("foo/jobs", with =>
+            {
+                with.Accept(MediaRange.FromString("application/json"));
+                with.JsonBody(requestObject);
+            });
+
+            // Assert
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+            Assert.That(response.Headers["Location"], Is.EqualTo("foo/jobs/2345"));
+            brightstar.Verify();
+        }
+
+        [Test]
+        public void TestPostExportWithFormat()
+        {
+            var brightstar = new Mock<IBrightstarService>();
+            var mockJobInfo = new Mock<IJobInfo>();
+            mockJobInfo.Setup(s => s.JobId).Returns("2345");
+            brightstar.Setup(s => s.StartExport("foo", "export.rdf", "http://some/graph/uri", It.Is<RdfFormat>(f=>f.DefaultExtension.Equals("rdf")) )).Returns(mockJobInfo.Object).Verifiable();
+            var app = new Browser(new FakeNancyBootstrapper(brightstar.Object));
+            var requestObject = JobRequestObject.CreateExportJob("export.rdf", "http://some/graph/uri", RdfFormat.RdfXml);
+
+            // Execute
+            var response = app.Post("foo/jobs", with =>
+            {
+                with.Accept(MediaRange.FromString("application/json"));
+                with.JsonBody(requestObject);
+            });
+
+            // Assert
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
+            Assert.That(response.Headers["Location"], Is.EqualTo("foo/jobs/2345"));
+            brightstar.Verify();
+        }
+
+        [Test]
+        public void TestPostExportWithFormatAndEncoding()
+        {
+            var brightstar = new Mock<IBrightstarService>();
+            var mockJobInfo = new Mock<IJobInfo>();
+            mockJobInfo.Setup(s => s.JobId).Returns("2345");
+            brightstar.Setup(s => s.StartExport("foo", "export.rdf", "http://some/graph/uri", It.Is<RdfFormat>(f => f.DefaultExtension.Equals("rdf") && f.Encoding.Equals(Encoding.UTF32)))).Returns(mockJobInfo.Object).Verifiable();
+            var app = new Browser(new FakeNancyBootstrapper(brightstar.Object));
+            var requestObject = JobRequestObject.CreateExportJob("export.rdf", "http://some/graph/uri", RdfFormat.RdfXml.WithEncoding(Encoding.UTF32));
 
             // Execute
             var response = app.Post("foo/jobs", with =>

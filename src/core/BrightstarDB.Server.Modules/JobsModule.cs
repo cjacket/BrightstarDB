@@ -107,14 +107,18 @@ namespace BrightstarDB.Server.Modules
                                 AssertPermission(StorePermissions.Export);
                                 if (!jobRequestObject.JobParameters.ContainsKey("FileName") ||
                                     !jobRequestObject.JobParameters.ContainsKey("GraphUri") ||
-                                    String.IsNullOrWhiteSpace(jobRequestObject.JobParameters["FileName"]))
+                                    String.IsNullOrWhiteSpace(jobRequestObject.JobParameters["FileName"]) ||
+                                    !jobRequestObject.JobParameters.ContainsKey("Format") ||
+                                    String.IsNullOrWhiteSpace(jobRequestObject.JobParameters["Format"]))
                                 {
                                     return HttpStatusCode.BadRequest;
                                 }
+                                RdfFormat format = RdfFormat.GetResultsFormat(jobRequestObject.JobParameters["Format"]);
                                 queuedJobInfo = brightstarService.StartExport(
                                     storeName,
                                     jobRequestObject.JobParameters["FileName"],
-                                    jobRequestObject.JobParameters["GraphUri"]);
+                                    jobRequestObject.JobParameters["GraphUri"],
+                                    format);
                                 break;
 
                             case "import":
